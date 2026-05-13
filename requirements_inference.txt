@@ -1,0 +1,8 @@
+opencv-python
+mediapipe
+numpy
+joblib
+scikit-learn
+h5py
+torch
+torch-geometric

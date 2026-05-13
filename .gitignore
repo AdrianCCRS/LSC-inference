@@ -1,0 +1,8 @@
+__pycache__/
+.venv/
+.vscode/
+*.pyc
+hand_landmarker.task
+legacy/
+model_artifacts/
+resultados_benchmark.json
