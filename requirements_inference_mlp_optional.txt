@@ -1,5 +1,0 @@
-# Opcional: solo si quieres usar TensorFlow para cargar la MLP.
-# El script tambien puede probar la MLP sin TensorFlow usando h5py + numpy.
-# TensorFlow puede no estar disponible para Python 3.14.
-# Si pip no encuentra tensorflow, usa Python 3.10, 3.11 o 3.12.
-tensorflow
