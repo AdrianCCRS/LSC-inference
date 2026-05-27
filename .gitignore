@@ -6,3 +6,4 @@ hand_landmarker.task
 legacy/
 resultados_benchmark.json
 resources/
+generated/
