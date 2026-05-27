@@ -1,0 +1,171 @@
+{
+  "metadata": {
+    "letters": [
+      "A"
+    ],
+    "models": [
+      "classic",
+      "gat",
+      "cnn"
+    ],
+    "duration_s": 5.0,
+    "simultaneous": true
+  },
+  "per_letter": [
+    {
+      "model": "classic",
+      "target_letter": "A",
+      "n_frames": 85,
+      "duration_s": 5.04,
+      "fps_effective": 16.9,
+      "confidence_mean": 0.3072,
+      "confidence_std": 0.0158,
+      "confidence_p25": 0.2967,
+      "confidence_p50": 0.3067,
+      "confidence_p75": 0.3167,
+      "entropy_mean": 0.7358,
+      "entropy_std": 0.0089,
+      "flip_rate": 0.0,
+      "stability_ratio": 1.0,
+      "top1_agreement": 1.0,
+      "accuracy": 1.0,
+      "modal_label": "A"
+    },
+    {
+      "model": "gat",
+      "target_letter": "A",
+      "n_frames": 85,
+      "duration_s": 5.04,
+      "fps_effective": 16.9,
+      "confidence_mean": 0.4379,
+      "confidence_std": 0.0453,
+      "confidence_p25": 0.4041,
+      "confidence_p50": 0.4408,
+      "confidence_p75": 0.4633,
+      "entropy_mean": 0.6556,
+      "entropy_std": 0.0348,
+      "flip_rate": 0.0,
+      "stability_ratio": 1.0,
+      "top1_agreement": 1.0,
+      "accuracy": 1.0,
+      "modal_label": "A"
+    },
+    {
+      "model": "cnn",
+      "target_letter": "A",
+      "n_frames": 85,
+      "duration_s": 5.04,
+      "fps_effective": 16.9,
+      "confidence_mean": 0.65,
+      "confidence_std": 0.1368,
+      "confidence_p25": 0.5552,
+      "confidence_p50": 0.6685,
+      "confidence_p75": 0.7515,
+      "entropy_mean": 0.3808,
+      "entropy_std": 0.1008,
+      "flip_rate": 1.192,
+      "stability_ratio": 0.9647,
+      "top1_agreement": 0.9647,
+      "accuracy": 0.9647,
+      "modal_label": "A"
+    }
+  ],
+  "aggregates": [
+    {
+      "model": "classic",
+      "n_letters": 1,
+      "letters_tested": [
+        "A"
+      ],
+      "confidence_mean_avg": 0.3072,
+      "confidence_mean_sem": NaN,
+      "confidence_std_avg": 0.0158,
+      "confidence_std_sem": NaN,
+      "entropy_mean_avg": 0.7358,
+      "entropy_mean_sem": NaN,
+      "flip_rate_avg": 0.0,
+      "flip_rate_sem": NaN,
+      "stability_ratio_avg": 1.0,
+      "stability_ratio_sem": NaN,
+      "top1_agreement_avg": 1.0,
+      "top1_agreement_sem": NaN,
+      "accuracy_avg": 1.0,
+      "accuracy_sem": NaN,
+      "per_letter": [
+        {
+          "letter": "A",
+          "confidence_mean": 0.3072,
+          "stability_ratio": 1.0,
+          "top1_agreement": 1.0,
+          "flip_rate": 0.0,
+          "entropy_mean": 0.7358,
+          "accuracy": 1.0
+        }
+      ]
+    },
+    {
+      "model": "gat",
+      "n_letters": 1,
+      "letters_tested": [
+        "A"
+      ],
+      "confidence_mean_avg": 0.4379,
+      "confidence_mean_sem": NaN,
+      "confidence_std_avg": 0.0453,
+      "confidence_std_sem": NaN,
+      "entropy_mean_avg": 0.6556,
+      "entropy_mean_sem": NaN,
+      "flip_rate_avg": 0.0,
+      "flip_rate_sem": NaN,
+      "stability_ratio_avg": 1.0,
+      "stability_ratio_sem": NaN,
+      "top1_agreement_avg": 1.0,
+      "top1_agreement_sem": NaN,
+      "accuracy_avg": 1.0,
+      "accuracy_sem": NaN,
+      "per_letter": [
+        {
+          "letter": "A",
+          "confidence_mean": 0.4379,
+          "stability_ratio": 1.0,
+          "top1_agreement": 1.0,
+          "flip_rate": 0.0,
+          "entropy_mean": 0.6556,
+          "accuracy": 1.0
+        }
+      ]
+    },
+    {
+      "model": "cnn",
+      "n_letters": 1,
+      "letters_tested": [
+        "A"
+      ],
+      "confidence_mean_avg": 0.65,
+      "confidence_mean_sem": NaN,
+      "confidence_std_avg": 0.1368,
+      "confidence_std_sem": NaN,
+      "entropy_mean_avg": 0.3808,
+      "entropy_mean_sem": NaN,
+      "flip_rate_avg": 1.192,
+      "flip_rate_sem": NaN,
+      "stability_ratio_avg": 0.9647,
+      "stability_ratio_sem": NaN,
+      "top1_agreement_avg": 0.9647,
+      "top1_agreement_sem": NaN,
+      "accuracy_avg": 0.9647,
+      "accuracy_sem": NaN,
+      "per_letter": [
+        {
+          "letter": "A",
+          "confidence_mean": 0.65,
+          "stability_ratio": 0.9647,
+          "top1_agreement": 0.9647,
+          "flip_rate": 1.192,
+          "entropy_mean": 0.3808,
+          "accuracy": 0.9647
+        }
+      ]
+    }
+  ]
+}
