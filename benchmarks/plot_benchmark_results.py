@@ -1,23 +1,27 @@
 """
-Genera graficas y tabla desde resultados_benchmark_v2.json (sin camara).
-Uso:  python plot_benchmark_results.py
+Genera graficas y tabla desde resultados_benchmark_v2.json o v3.json (sin camara).
+Uso:  python benchmarks/plot_benchmark_results.py
+      python benchmarks/plot_benchmark_results.py --results resultados_benchmark_v3.json
+      python benchmarks/plot_benchmark_results.py --results resultados_benchmark_v3.json --out benchmark_plots_v3.png
 """
+import argparse
 import json
 import sys
 from pathlib import Path
 
 import numpy as np
 
-RESULTS_FILE = Path(__file__).parent / "resultados_benchmark_v2.json"
-PLOT_OUT     = Path(__file__).parent / "benchmark_plots_v2.png"
-
 
 def print_table(aggregates: list[dict]):
+    aggregates = [r for r in aggregates if r.get("model") and r.get("n_letters", 0) > 0]
+    if not aggregates:
+        print("(sin datos para mostrar)")
+        return
     cols = [
-        ("Modelo",        "model",                "s",   15),
-        ("Conf μ",        "confidence_mean_avg",  ".2%", 8),
+        ("Modelo",        "model",                "s",   10),
+        ("Conf mu",       "confidence_mean_avg",  ".2%", 8),
         ("±SEM",          "confidence_mean_sem",  ".3f", 7),
-        ("Acc μ",         "accuracy_avg",         ".2%", 8),
+        ("Acc mu",        "accuracy_avg",         ".2%", 8),
         ("±SEM",          "accuracy_sem",         ".3f", 7),
         ("Entropia",      "entropy_mean_avg",     ".3f", 9),
         ("Flip/s",        "flip_rate_avg",        ".2f", 8),
@@ -28,7 +32,7 @@ def print_table(aggregates: list[dict]):
     header = "  ".join(f"{name:<{w}}" for name, _, _, w in cols)
     sep    = "  ".join("-" * w for _, _, _, w in cols)
     print("\n" + "=" * len(header))
-    print("TABLA COMPARATIVA DE ESTABILIDAD EN TIEMPO REAL (v2 - HG-GCN)")
+    print("TABLA COMPARATIVA DE ESTABILIDAD EN TIEMPO REAL")
     print("=" * len(header))
     print(header)
     print(sep)
@@ -70,8 +74,8 @@ def plot_from_json(results_file: str, save_path: str):
 
     fig = plt.figure(figsize=(22, 14))
     fig.suptitle(
-        f"Comparacion de Estabilidad Temporal — Agregado Multi-Letra (v2 - HG-GCN)\n"
-        f"({n_letters} letras × {n} modelos — media ± SEM sobre letras)",
+        f"Comparacion de Estabilidad Temporal — Agregado Multi-Letra\n"
+        f"({n_letters} letras x {n} modelos — media ± SEM sobre letras)",
         fontsize=14, fontweight="bold", y=0.99,
     )
     gs = gridspec.GridSpec(3, 3, figure=fig, hspace=0.50, wspace=0.35)
@@ -193,19 +197,53 @@ def plot_from_json(results_file: str, save_path: str):
     print(f"\nGraficas guardadas en: {save_path}")
 
 
-if __name__ == "__main__":
-    if not RESULTS_FILE.exists():
-        print(f"ERROR: No se encontro {RESULTS_FILE}")
-        sys.exit(1)
+def parse_args():
+    p = argparse.ArgumentParser(description="Plot benchmark results from JSON")
+    p.add_argument("--results", "-r", default=None,
+                   help="Archivo JSON de resultados (default: auto-detecta v2 o v3).")
+    p.add_argument("--out", "-o", default=None,
+                   help="Archivo PNG de salida (default: deriva del nombre del JSON).")
+    return p.parse_args()
 
-    with open(RESULTS_FILE) as f:
+
+if __name__ == "__main__":
+    args = parse_args()
+
+    script_dir = Path(__file__).parent
+
+    # Auto-detect
+    if args.results:
+        results_file = Path(args.results)
+    else:
+        v3 = script_dir / "resultados_benchmark_v3.json"
+        v2 = script_dir / "resultados_benchmark_v2.json"
+        if v3.exists():
+            results_file = v3
+        elif v2.exists():
+            results_file = v2
+        else:
+            print(f"ERROR: No se encontro resultados_benchmark_v3.json ni v2.json"); sys.exit(1)
+
+    if args.out:
+        plot_out = Path(args.out)
+    else:
+        stem = results_file.stem
+        plot_out = script_dir / f"{stem.replace('resultados_benchmark', 'benchmark_plots')}.png"
+
+    if not results_file.exists():
+        print(f"ERROR: No se encontro {results_file}"); sys.exit(1)
+
+    with open(results_file) as f:
         data = json.load(f)
 
     aggregates = data.get("aggregates", [])
     if not aggregates:
-        print("No hay datos agregados.")
-        sys.exit(1)
+        print("No hay datos agregados."); sys.exit(1)
 
-    print(f"Resultados cargados: {len(aggregates)} modelos × {aggregates[0].get('n_letters','?')} letras = {len(data.get('per_letter',[]))} sesiones\n")
+    meta = data.get("metadata", {})
+    n_models = len(aggregates)
+    n_letters = aggregates[0].get("n_letters", "?")
+    print(f"Resultados cargados: {results_file}")
+    print(f"  {n_models} modelos x {n_letters} letras = {len(data.get('per_letter', []))} sesiones\n")
     print_table(aggregates)
-    plot_from_json(str(RESULTS_FILE), str(PLOT_OUT))
+    plot_from_json(str(results_file), str(plot_out))

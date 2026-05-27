@@ -6,41 +6,13 @@ Interprete de Lengua de Senas Colombiana usando camara web + MediaPipe.
 Soporta los 5 modelos entrenados en el notebook:
   - Random Forest / SVM / KNN  (classic ML + features geometricas)
   - MLP                        (Keras .keras + features geometricas)
-  - GCN (HandGCNv2)            (PyTorch Geometric, node_dim=10)
-  - GAT (HandGAT)              (PyTorch Geometric, node_dim=10 + edge_attr)
+  - GCN (HandGCNv2)            (PyTorch Geometric, node_dim=18)
+  - GAT (HandGAT)              (PyTorch Geometric, node_dim=18 + edge_attr)
   - GAT Robusto                (identico a GAT, entrenado con aumentacion)
-
-Preprocesamiento exactamente igual al entrenamiento:
-  1. Extraer 21 landmarks (x,y,z) con MediaPipe Hands.
-  2. Centrar en la muneca (landmark 0).
-  3. Escalar por la distancia maxima al origen.
-  4. Rotar para alinear el landmark 9 (metacarpo medio) al eje +X.
-  5. Para modelos tabulares: agregar distancias anatomicas, distancias
-     entre puntas y angulos articulares.
-  6. Para modelos de grafo: construir node_features (10‑dim por nodo):
-       [x, y, z,  bone_vec_x, bone_vec_y, bone_vec_z,  dist_center,
-        polar_r, azimuth, elevation]
-     y edge_attr (distancia euclidiana por arista).
-
-Diferencias respecto a v1:
-  - build_node_features ahora produce 10 features (HG‑GCN: + coord. polares).
-  - El numero de canales de entrada (in_channels) se lee del checkpoint,
-    asi que funciona con modelos entrenados con node_dim=7 o node_dim=10.
-
-Requisitos:
-  pip install opencv-python mediapipe numpy joblib tensorflow
-  pip install torch torch-geometric
-  (MediaPipe >= 0.10 con la API Tasks)
-
-Uso:
-  python lsc_inference_realtime_v2.py
-  python lsc_inference_realtime_v2.py --model gcn --artifacts model_artifacts_kaggle
-  python lsc_inference_realtime_v2.py --model mlp --artifacts model_artifacts_kaggle
-  python lsc_inference_realtime_v2.py --model classic
-  python lsc_inference_realtime_v2.py --model gat
-  python lsc_inference_realtime_v2.py --model gat_robusto
-  python lsc_inference_realtime_v2.py --list-models
 """
+import os
+os.environ["CUDA_VISIBLE_DEVICES"] = ""
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 
 import argparse
 import json
@@ -158,6 +130,73 @@ def build_edge_index_torch(edges_undirected):
     return torch.tensor(directed, dtype=torch.long).t().contiguous()
 
 
+
+def compute_palm_normal(coords_normalized):
+    """
+    Vector normal de la palma con wrist(0), index_MCP(5), pinky_MCP(17).
+    Producto cruz v1 × v2. Z positivo = palma hacia camara.
+    """
+    c = coords_normalized.astype(np.float32)
+    v1 = c[5] - c[0]
+    v2 = c[17] - c[0]
+    normal = np.cross(v1, v2)
+    norm_len = np.linalg.norm(normal)
+    if norm_len > 1e-9:
+        normal = normal / norm_len
+    return float(normal[0]), float(normal[1]), float(normal[2])
+
+
+def compute_signed_volumes(coords_normalized):
+    """
+    Volumenes de tetraedros con signo (quiralidad).
+    Base: wrist(0), index_MCP(5), pinky_MCP(17).
+    Apex: cada punta de dedo (4,8,12,16,20).
+    V = (1/6) * w . (u x v). Cambia de signo al voltear la mano.
+    """
+    c = coords_normalized.astype(np.float32)
+    u = c[5] - c[0]
+    v = c[17] - c[0]
+    cross_uv = np.cross(u, v)
+    volumes = []
+    for tip_idx in [4, 8, 12, 16, 20]:
+        w = c[tip_idx] - c[0]
+        vol = np.dot(w, cross_uv) / 6.0
+        volumes.append(float(vol))
+    return np.array(volumes, dtype=np.float32)
+
+
+
+def build_node_features_v2(coords_normalized, edges_undirected, base_connections=None):
+    """
+    Construye node_features de dimension 10 por nodo (V2 original):
+      3 coords + 3 bone_vec + 1 dist_center + 1 polar_r + 1 azimuth + 1 elevation
+    (SIN palm normal ni signed volumes).
+    """
+    c = coords_normalized.astype(np.float32)
+    parent_map = {}
+    for parent, child in (base_connections or edges_undirected):
+        if child not in parent_map:
+            parent_map[child] = parent
+
+    bone_vecs = np.zeros_like(c)
+    for idx in range(c.shape[0]):
+        p = parent_map.get(idx)
+        if p is not None:
+            bone_vecs[idx] = c[idx] - c[p]
+
+    dist_center = np.linalg.norm(c, axis=1, keepdims=True)
+    x, y, z = c[:, 0], c[:, 1], c[:, 2]
+    eps = np.finfo(np.float32).eps
+    polar_r  = np.sqrt(np.maximum(x**2 + y**2, eps)).reshape(-1, 1)
+    azimuth  = np.arctan2(y, x).reshape(-1, 1)
+    elevation = np.arctan2(z, np.sqrt(np.maximum(x**2 + y**2, eps))).reshape(-1, 1)
+
+    node_features = np.concatenate(
+        [c, bone_vecs, dist_center, polar_r, azimuth, elevation], axis=1
+    )  # (21, 10)
+    return node_features.astype(np.float32)
+
+
 def build_node_features(coords_normalized, edges_undirected, base_connections=None):
     """
     Construye node_features de dimension 10 por nodo (HG-GCN style):
@@ -208,6 +247,44 @@ def build_edge_features(coords_normalized, edges_undirected):
     return np.array(edge_feats + edge_feats, dtype=np.float32)  # (2*E, 1)
 
 
+
+def build_tabular_features_v2(coords_normalized):
+    """
+    Construye features tabulares V2 (118-dim): 63 coords + distancias + angulos.
+    SIN palm normal ni signed volumes.
+    """
+    c = coords_normalized
+    bone_pairs     = list(HAND_CONNECTIONS)
+    tip_pairs      = list(combinations(TIP_INDICES, 2))
+    wrist_tip_pairs = [(0, tip) for tip in TIP_INDICES]
+
+    finger_angle_triples = []
+    for chain in FINGER_CHAINS.values():
+        for a, b, cc in zip(chain[:-2], chain[1:-1], chain[2:]):
+            finger_angle_triples.append((a, b, cc))
+
+    def dist(i, j):
+        return float(np.linalg.norm(c[i] - c[j]))
+
+    def angle(a, b, cc):
+        v1 = c[a] - c[b]
+        v2 = cc - c[b] if isinstance(cc, np.ndarray) else c[cc] - c[b]
+        denom = np.linalg.norm(v1) * np.linalg.norm(v2)
+        if denom == 0:
+            return 0.0
+        return float(np.arccos(np.clip(np.dot(v1, v2) / denom, -1.0, 1.0)) / np.pi)
+
+    features = []
+    features.extend(c.reshape(-1).tolist())
+    features.extend(dist(i, j) for i, j in bone_pairs)
+    features.extend(dist(i, j) for i, j in tip_pairs)
+    features.extend(dist(i, j) for i, j in wrist_tip_pairs)
+    features.extend(angle(a, b, cc) for a, b, cc in finger_angle_triples)
+    features.extend(angle(a, b, cc) for _, a, b, cc in PALM_ANGLE_TRIPLES)
+
+    return np.array(features, dtype=np.float32)
+
+
 def build_tabular_features(coords_normalized):
     """
     Construye el vector de features tabulares enriquecidas:
@@ -244,6 +321,12 @@ def build_tabular_features(coords_normalized):
     features.extend(dist(i, j) for i, j in wrist_tip_pairs)             # 5  dist. muneca-puntas
     features.extend(angle(a, b, cc) for a, b, cc in finger_angle_triples)  # angulos dedos
     features.extend(angle(a, b, cc) for _, a, b, cc in PALM_ANGLE_TRIPLES) # angulos palma
+
+    palm_nx, palm_ny, palm_nz = compute_palm_normal(c)
+    vol_features = compute_signed_volumes(c)
+    features.extend([palm_nx, palm_ny, palm_nz])          # 3 palm normal XYZ
+    for v in vol_features:
+        features.append(float(v))                           # 5 signed tetra volumes
 
     return np.array(features, dtype=np.float32)
 
@@ -461,6 +544,7 @@ def load_model_package(model_key: str, artifacts_dir: Path):
         pkg["Data"]       = Data
         pkg["to_dense"]   = to_dense_batch
         pkg["needs_edge_attr"] = False
+        pkg["expected_in_channels"] = int(ckpt.get("in_channels", 10))
         print(f"HandGCNv2 cargado desde {path} en {device}")
         return pkg
 
@@ -493,6 +577,7 @@ def load_model_package(model_key: str, artifacts_dir: Path):
         pkg["Data"]       = Data
         pkg["to_dense"]   = to_dense_batch
         pkg["needs_edge_attr"] = True
+        pkg["expected_in_channels"] = int(ckpt.get("in_channels", 10))
         print(f"HandGAT cargado desde {path} en {device}")
         return pkg
 
@@ -521,7 +606,24 @@ def predict(pkg: dict, coords_norm: np.ndarray) -> tuple[str, float, np.ndarray]
 
     # ── Tabular (classic / mlp) ─────────────────────────────────────────────
     if pkg["input"] == "tabular":
-        tabular = build_tabular_features(coords_norm).reshape(1, -1)
+                # Auto-detectar dimensionalidad tabular
+        if hasattr(pkg["model"], "n_features_in_"):
+            expected_n = pkg["model"].n_features_in_
+        elif hasattr(pkg["model"], "named_steps"):
+            # Pipeline: buscar el primer estimator con n_features_in_
+            for _, step in pkg["model"].named_steps.items():
+                if hasattr(step, "n_features_in_"):
+                    expected_n = step.n_features_in_
+                    break
+            else:
+                expected_n = 126  # default V3
+        else:
+            expected_n = 126
+
+        if expected_n <= 118:
+            tabular = build_tabular_features_v2(coords_norm).reshape(1, -1)
+        else:
+            tabular = build_tabular_features(coords_norm).reshape(1, -1)
 
         if model_type == "mlp":
             probs = pkg["model"].predict(tabular, verbose=0)[0]

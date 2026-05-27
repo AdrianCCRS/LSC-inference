@@ -4,5 +4,7 @@ numpy
 joblib
 scikit-learn
 h5py
+tensorflow
 torch
 torch-geometric
+onnxruntime
